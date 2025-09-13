@@ -1,7 +1,8 @@
+import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import threading
-from MER.emotion_engine import predict_emotion_from_video
+from emotion_engine import predict_emotion_from_video
 
 class EmotionRecognitionGUI:
     def __init__(self, root):
