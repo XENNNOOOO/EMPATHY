@@ -1,177 +1,170 @@
-// app/chatbot/page.tsx
 "use client";
-import { useState } from 'react';
 
-// Define types for better type safety
-type SuccessResponse = {
-  response: string;
-  usage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
+import { useState, useRef, useEffect, FormEvent } from 'react';
+
+// Define the structure for a single message in the chat
+type Message = {
+  role: 'user' | 'model';
+  content: string;
 };
 
-type ErrorResponse = {
-  error: string;
-};
+// SVG Icon Components for a cleaner JSX
+const UserIcon = () => (
+  <div className="h-8 w-8 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-white text-xs">
+    U
+  </div>
+);
 
-type SummarizeResponse = SuccessResponse | ErrorResponse;
+const AuraIcon = () => (
+  <div className="h-8 w-8 rounded-full bg-gray-700 flex items-center justify-center font-bold text-gray-300 text-xs">
+    A
+  </div>
+);
 
-export default function TextSummarizer() {
+const SendIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
+    </svg>
+);
+
+export default function AuraChatbot() {
   const [inputText, setInputText] = useState<string>('');
-  const [response, setResponse] = useState<string>('');
+  const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const [showVideo, setShowVideo] = useState<boolean>(false);
+  const chatWindowRef = useRef<HTMLDivElement>(null);
 
-const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-  e.preventDefault();
-  setLoading(true);
-  setError(null);
-  setResponse('');
+  // Automatically scroll to the bottom when new messages are added
+  useEffect(() => {
+    if (chatWindowRef.current) {
+      chatWindowRef.current.scrollTop = chatWindowRef.current.scrollHeight;
+    }
+  }, [messages]);
+  
+  // Initialize with a welcome message
+  useEffect(()=> {
+    setMessages([{
+        role: 'model',
+        content: "Hello! I'm Aura, your empathetic AI companion. Feel free to share what's on your mind. How are you doing today?"
+    }]);
+  }, []);
 
-  try {
-    const response = await fetch('/api/empathic-chatbot', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ text: inputText }),
-    });
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!inputText.trim() || loading || showVideo) return;
 
-    const data: SummarizeResponse = await response.json();
+    const currentInput = inputText;
+    setInputText('');
 
-    // ✅ Type guard: if it has 'error', it's an error response → throw
-    if ('error' in data) {
-      throw new Error(data.error);
+    if (currentInput.toLowerCase() === 'tapos na ba?') {
+        setShowVideo(true);
+        // The video is about 6 seconds long. We'll hide it after 7 seconds.
+        setTimeout(() => {
+            setShowVideo(false);
+        }, 7000); 
+        return;
     }
 
-    // ✅ TypeScript now knows data is SuccessResponse
-    setResponse(data.response);
+    const newMessages: Message[] = [...messages, { role: 'user', content: currentInput }];
+    setMessages(newMessages);
+    setLoading(true);
 
-  } catch (err: unknown) {
-    if (err instanceof Error) {
-      setError(err.message);
-    } else {
-      setError('An unknown error occurred');
+    try {
+        const response = await fetch('/api/empathic-chatbot', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ text: currentInput }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || "An API error occurred.");
+        }
+
+        const result = await response.json();
+        const botMessage = result.response;
+
+        if (botMessage) {
+            setMessages(prev => [...prev, { role: 'model', content: botMessage }]);
+        } else {
+            setMessages(prev => [...prev, { role: 'model', content: "I'm not sure how to respond to that. Could you try rephrasing?" }]);
+        }
+
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+        console.error(errorMessage);
+        setMessages(prev => [...prev, { role: 'model', content: `Sorry, something went wrong: ${errorMessage}` }]);
+    } finally {
+        setLoading(false);
     }
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
-      <h1>💕 Empathic Chatbot 💕</h1>
-
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: '1rem' }}>
-          <label htmlFor="text" style={{ display: 'block', marginBottom: '0.5rem' }}>
-            Scenario:
-          </label>
-          <textarea
-            id="text"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder="text here..."
-            rows={8}
-            style={{
-              width: '100%',
-              padding: '0.5rem',
-              border: '1px solid #ddd',
-              borderRadius: '4px',
-              fontSize: '14px',
-            }}
-            required
-          />
-        </div>
-
-        <button
-          type="submit"
-          disabled={loading || !inputText.trim()}
-          style={{
-            backgroundColor: '#0070f3',
-            color: 'white',
-            padding: '0.75rem 1.5rem',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            fontSize: '16px',
-          }}
-        >
-          {loading ? 'Responding' : 'Response'}
-        </button>
-      </form>
-
-      {error && (
-        <div
-          style={{
-            marginTop: '1rem',
-            padding: '1rem',
-            backgroundColor: '#fee',
-            border: '1px solid #fcc',
-            borderRadius: '4px',
-            color: '#c33',
-          }}
-        >
-          Error: {error}
-        </div>
+    <main className="bg-gray-900 text-gray-200 h-screen w-full flex flex-col font-sans relative">
+      {showVideo && (
+          <div className="absolute inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
+              <iframe 
+                width="640" 
+                height="390" 
+                src="https://www.youtube.com/embed/hGNLYgmMq1c?autoplay=1" 
+                title="YouTube video player" 
+                frameBorder="0" 
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                allowFullScreen>
+              </iframe>
+          </div>
       )}
+      <header className="bg-gray-800/60 backdrop-blur-md border-b border-gray-700 p-4 flex justify-between items-center">
+        <h1 className="text-xl font-bold text-gray-100">Aura</h1>
+      </header>
 
-      {response && (
-        <div
-          style={{
-            marginTop: '2rem',
-            padding: '1rem',
-            backgroundColor: '#f0f8ff',
-            border: '1px solid #0070f3',
-            borderRadius: '4px',
-          }}
-        >
-          <h3>📋 Summary:</h3>
-          <p style={{ lineHeight: '1.6' }}>{response}</p>
-        </div>
-      )}
-
-      {/* Sample text for testing */}
-      <div style={{ marginTop: '2rem', fontSize: '12px', color: '#666' }}>
-        <p>
-          <strong>Tip:</strong> Try this sample scenario:
-        </p>
-        <textarea
-          readOnly
-          value={`I have so much homework and exams coming up. I feel like I'm drowning and I don't know where to start. My parents keep asking about my grades and I'm afraid to tell them.`}
-          style={{
-            width: '100%',
-            height: '80px',
-            padding: '0.5rem',
-            border: '1px solid #eee',
-            borderRadius: '4px',
-            backgroundColor: '#f9f9f9',
-          }}
-        />
-        <button
-        
-          onClick={() =>
-            setInputText(
-                "I have so much homework and exams coming up. I feel like I'm drowning and I don't know where to start. My parents keep asking about my grades and I'm afraid to tell them."
-            )
-          }
-          style={{
-            marginTop: '0.5rem',
-            padding: '0.25rem 0.5rem',
-            fontSize: '12px',
-            backgroundColor: '#0070f3',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: loading ? 'not-allowed' : 'pointer',
-          }}
-        >
-          Use Sample Text
-        </button>
+      <div ref={chatWindowRef} className="flex-1 overflow-y-auto p-6 space-y-6">
+        {messages.map((msg, index) => (
+          <div key={index} className={`flex items-start w-full gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            {msg.role === 'model' && <AuraIcon />}
+            <div className={`rounded-xl py-2 px-4 max-w-md break-words text-sm ${
+              msg.role === 'user' 
+                ? 'bg-indigo-600 text-white' 
+                : 'bg-gray-800 border border-gray-700 text-gray-300'
+            }`}>
+              <p>{msg.content}</p>
+            </div>
+            {msg.role === 'user' && <UserIcon />}
+          </div>
+        ))}
+         {loading && (
+           <div className="flex items-start w-full gap-3 justify-start">
+              <AuraIcon />
+              <div className="bg-gray-800 border border-gray-700 text-gray-300 rounded-xl py-2 px-4 max-w-md break-words flex items-center">
+                  <span className="animate-pulse">...</span>
+              </div>
+          </div>
+         )}
       </div>
-     
-    </div>
+
+      <div className="p-4 bg-gray-900/60 backdrop-blur-md">
+        <div className="max-w-3xl mx-auto">
+          <form onSubmit={handleSubmit} className="relative flex items-center">
+            <input
+              type="text"
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              className="flex-grow pl-4 pr-12 py-3 bg-gray-800 border border-gray-700 rounded-full focus:ring-indigo-500 focus:border-indigo-500 block w-full text-sm text-gray-200 placeholder-gray-500"
+              placeholder="Type your message..."
+              disabled={loading || showVideo}
+            />
+            <button
+              type="submit"
+              disabled={loading || !inputText.trim() || showVideo}
+              className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-9 w-9 rounded-full text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400"
+            >
+              {loading ? <div className="spinner-small border-2 border-white/40 border-l-white w-5 h-5 animate-spin rounded-full"></div> : <SendIcon />}
+            </button>
+          </form>
+        </div>
+      </div>
+    </main>
   );
 }
