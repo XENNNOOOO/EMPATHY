@@ -39,10 +39,14 @@ export async function POST(request: NextRequest) {
       throw new Error('Missing GEMINI_API_KEY environment variable.');
     }
 
-    const prompt = `You are a helpful assistant that can help me with what I am feeling. Here is what I've been going through (Limit your response to 150 tokens): \n\n${text}`;
+    const prompt = `You are an empathetic assistant. 
+    Your job is to respond quickly and kindly to the user’s feelings.
+    Write 3 short supportive sentences only. 
+    Do not restate the user’s message. Respond immediately and concisely with a maximum of 150 words. 
+    User's Message: \n\n${text}`;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: {
@@ -59,7 +63,7 @@ export async function POST(request: NextRequest) {
             },
           ],
           generationConfig: {
-            maxOutputTokens: 150,
+            maxOutputTokens: 800,
             temperature: 0.3,
           },
         }),
@@ -67,8 +71,8 @@ export async function POST(request: NextRequest) {
     );
 
     const data = await response.json();
-    console.log('I HAVE THE RESPONSE');
-    console.log(response);
+    console.log('Gemini raw response:', JSON.stringify(data, null, 2));
+
     if (!response.ok) {
       console.error('Gemini API Error:', data);
       return NextResponse.json(
@@ -77,13 +81,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (data.error) {
+      return NextResponse.json(
+        { error: `Gemini API error: ${data.error.message}` },
+        { status: 500 }
+      );
+    }
+
+
     const candidate = data.candidates?.[0];
-    if (!candidate || !candidate.content?.parts?.[0]?.text) {
+    const textResponse = candidate?.content?.parts?.[0]?.text?.trim();
+
+    if (!textResponse) {
+      console.error('Unexpected Gemini response format:', data);
       return NextResponse.json(
         { error: 'Invalid response format from Gemini API' },
         { status: 500 }
       );
     }
+
 
     const usageMetadata = data.usageMetadata || {};
 
