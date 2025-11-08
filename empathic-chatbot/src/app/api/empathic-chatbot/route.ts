@@ -22,7 +22,7 @@ type ErrorResponse = {
 // --- System Instruction for LONG-MONOTONOUS Condition ---
 const systemInstruction = {
   parts: [{
-    text: "You are an experimental chatbot for a psychology study. Your task is to provide a response that is neutral, and very long (100-200 words)"
+    text: "You are an experimental chatbot for a psychology study; respond to the user in a natural, empathetic, and conversational tone without sounding robotic or overly formal, keeping tone consistent across all replies, and provide a long answer (80–100 words)."
   }]
 };
 // -----------------------------------------------------------
